@@ -9,6 +9,18 @@ Born from [Supabase Evals](https://supabase.com/evals) (July 2026): coding agent
 
 > Status: work in progress. This is a start, not a finished methodology. Issues and PRs welcome.
 
+## What it checks, and what it doesn't
+
+| Checks | Doesn't |
+|---|---|
+| Access: who can see which data, proven with real queries | Optimize your queries or redesign your schema |
+| Performance basics via advisors: unindexed foreign keys, RLS policies re-evaluated per row, obvious traps | Load testing or capacity planning |
+| Migration drift and declarative-schema bypasses | Write your migrations for you |
+| Outdated packages and auth shortcuts | Full code review of your app |
+| Storage and Realtime wiring (when touched) | Design decisions - those stay human |
+
+It's a supervisor, not an optimizer: it verifies the work is safe and honest, flags the performance traps that bite later, and gives an explicit verdict. Deep optimization is its own job.
+
 ## Trigger rule (default ON)
 
 After completing any of these in a session, run this skill before calling the work done:
@@ -35,7 +47,7 @@ The supervisor uses whatever real access exists: Supabase MCP tools (`execute_sq
 ## Supervisor checklist (the Investigate role)
 
 1. **Who can see which data - with proof.** For each table touched: query as anon, as an authenticated user, and cross-user/cross-tenant. The verdict per table is explicit: "user A cannot read user B's rows: VERIFIED" or "LEAK". Never accept the policy text as proof; run the query.
-2. **Advisors.** Run the security and performance advisors. Report anything new.
+2. **Advisors, both lenses.** Run the security advisors AND the performance advisors: unindexed foreign keys, RLS policies re-evaluated per row instead of once, missing primary keys, obvious slow patterns. Report anything new since the build.
 3. **Migration reality check.** Migration history vs actual schema. Flag drift, and flag hand-written migrations where a declarative schema was the right call. Evals finding: agents hand-write migrations EVEN in projects that already use declarative schemas, so check for this even when `supabase/schemas/` exists. Caveat: `db diff` does NOT capture RLS policies or DML, so the RLS verification in item 1 happens regardless of declarative setup.
 4. **Shortcut scan.** Hand-rolled auth verification with `supabase-js` in edge functions where `@supabase/server` applies, other deprecated or legacy packages, service-role usage where anon + RLS should work, `SECURITY DEFINER` without a documented reason.
 5. **Timezone and race basics** where relevant: date handling that shifts days across timezones, async mutations without a lock or disabled state.
@@ -89,6 +101,7 @@ The model's knowledge has a date; Supabase ships monthly. The supervisor NEVER j
 - **Package and pattern verdicts** (which client library, declarative schema vs migrations, auth patterns): check against CURRENT Supabase docs before flagging. What was best practice at training time may be deprecated today, and vice versa.
 - **Routing facts expire.** Any "agent X is best at investigating" claim is a snapshot. Re-fetch the live leaderboard before leaning on it (see next section).
 - **Receipts, always.** Every verdict ships its evidence: the exact SQL queries run and their output, the docs pages consulted (with URLs), the advisor findings. A human validates the receipts, not the vibes. A verdict without receipts is an opinion.
+- **Upstream freshness.** Once per supervision run, check whether the sources moved: latest commit of [supabase/agent-skills](https://github.com/supabase/agent-skills) vs when your skills were installed, and latest commit of [supabase/evals](https://github.com/supabase/evals). One GitHub API call each (`https://api.github.com/repos/supabase/agent-skills/commits?per_page=1`). If upstream moved, say it in the receipts: "upstream agent-skills updated N days ago, consider re-installing". Staying current is not a chore here, it is the whole premise.
 
 ## Route by the live leaderboard
 
