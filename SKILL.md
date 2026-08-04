@@ -57,6 +57,31 @@ Swap `authenticated` for `anon` (and drop the claims) to test the anonymous path
 
 **Supervision is read-only.** The `begin ... rollback` wrapper means it never mutates data. If a write test is unavoidable, use a disposable row you delete afterward, or run it on a database branch.
 
+### Storage and Realtime (when touched)
+
+Storage policies live on `storage.objects`, so the same impersonation trick works:
+
+```sql
+begin;
+set local role anon;
+select name from storage.objects where bucket_id = 'private-bucket';  -- expect: 0 rows
+rollback;
+```
+
+Add one HTTP check from outside: a private bucket's public URL must not serve the file. `curl -s -o /dev/null -w "%{http_code}" https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<path>` should NOT return 200. For per-user folders, impersonate user A and query user B's folder: 0 rows or LEAK.
+
+Realtime has two silent killers behind "subscribed but no events arrive":
+
+```sql
+-- 1. is the table in the realtime publication at all?
+select tablename from pg_publication_tables where pubname = 'supabase_realtime';
+
+-- 2. updates/deletes need replica identity to carry full payloads
+select relreplident from pg_class where oid = 'public.<table>'::regclass;  -- 'f' = full
+```
+
+And remember realtime respects RLS: if the impersonation test says a user can't SELECT a row, that user gets no events for it either. One test, two verdicts.
+
 ## Live data, not training data
 
 The model's knowledge has a date; Supabase ships monthly. The supervisor NEVER judges from memory:
